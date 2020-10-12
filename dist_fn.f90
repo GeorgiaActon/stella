@@ -26,24 +26,31 @@ module dist_fn
 
 contains
 
-  subroutine init_gxyz
+  subroutine init_gxyz (adjoint)
 
-    use dist_fn_arrays, only: gvmu, gold, gnew
+    use dist_fn_arrays, only: gvmu, gold, gnew, lambda_new, lambda_old
     use redistribute, only: gather
     use dist_redistribute, only: kxkyz2vmu
 
     implicit none
 
+    logical, optional, intent (in) :: adjoint
+    
     if (gxyz_initialized) return
     gxyz_initialized = .false.
 
     ! get version of g that has ky,kx,z local
-    call gather (kxkyz2vmu, gvmu, gnew)
-    gold = gnew
+    if (present(adjoint)) then
+       call gather (kxkyz2vmu, gvmu, lambda_new)
+       lambda_old = lambda_new
+    else
+       call gather (kxkyz2vmu, gvmu, gnew)
+       gold = gnew
+    end if
 
   end subroutine init_gxyz
 
-  subroutine init_dist_fn
+  subroutine init_dist_fn (adjoint)
 
     use mp, only: proc0
     use stella_layouts, only: init_dist_fn_layouts
@@ -55,7 +62,7 @@ contains
     use physics_flags, only: include_parallel_nonlinearity
 
     implicit none
-
+    logical, optional, intent (in) :: adjoint
     if (dist_fn_initialized) return
     dist_fn_initialized = .true.
 
@@ -64,7 +71,11 @@ contains
     if (debug) write (*,*) 'dist_fn::init_dist_fn::read_parameters'
     call read_parameters
     if (debug) write (*,*) 'dist_fn::init_dist_fn::allocate_arrays'
-    call allocate_arrays
+    if (present(adjoint)) then
+       call allocate_arrays_adjoint
+    else
+       call allocate_arrays
+    end if
     if (debug) write (*,*) 'dist_fn::init_dist_fn::init_kperp2'
     call init_kperp2
     if (debug) write (*,*) 'dist_fn::init_dist_fn::init_vperp2'
@@ -149,41 +160,41 @@ contains
           end do
        end if
     end do
-    
-    call enforce_single_valued_kperp2
 
   end subroutine init_kperp2
 
-  subroutine enforce_single_valued_kperp2
 
-    use dist_fn_arrays, only: kperp2
-    use kt_grids, only: naky, nalpha
-    use zgrid, only: nzgrid
-    use extended_zgrid, only: neigen, nsegments, ikxmod
+  subroutine allocate_arrays_adjoint
+    
+    use stella_layouts, only: kxkyz_lo, vmu_lo
+    use zgrid, only: nzgrid, ntubes
+    use kt_grids, only: naky, nakx
+    use vpamu_grids, only: nvpa, nmu
+    use dist_fn_arrays, only: lambda_new, lambda_old
+    use dist_fn_arrays, only: gvmu, beta, gnew, gold
 
     implicit none
-
-    integer :: iky, ie, iseg
-    real, dimension (:), allocatable :: tmp
-
-    allocate (tmp(nalpha)) ; tmp = 0.0
-
-    do iky = 1, naky
-       do ie = 1, neigen(iky)
-          if (nsegments(ie,iky) > 1) then
-             do iseg = 2, nsegments(ie,iky)
-                tmp = 0.5*(kperp2(iky,ikxmod(iseg-1,ie,iky),:,nzgrid) + kperp2(iky,ikxmod(iseg,ie,iky),:,-nzgrid))
-                kperp2(iky,ikxmod(iseg,ie,iky),:,-nzgrid) = tmp
-                kperp2(iky,ikxmod(iseg-1,ie,iky),:,nzgrid) = tmp
-             end do
-          end if
-       end do
-    end do
-
-    deallocate (tmp)
-
-  end subroutine enforce_single_valued_kperp2
-
+    
+    if (.not.allocated(lambda_new)) &
+         allocate (lambda_new(naky,nakx,-nzgrid:nzgrid,ntubes,vmu_lo%llim_proc:vmu_lo%ulim_alloc))
+    lambda_new = 0.
+    if (.not.allocated(lambda_old)) &
+         allocate (lambda_old(naky,nakx,-nzgrid:nzgrid,ntubes,vmu_lo%llim_proc:vmu_lo%ulim_alloc))
+    lambda_old = 0.
+    if (.not.allocated(gvmu)) &
+         allocate (gvmu(nvpa,nmu,kxkyz_lo%llim_proc:kxkyz_lo%ulim_alloc))
+    gvmu = 0.
+    if (.not.allocated(beta)) &
+         allocate(beta(kxkyz_lo%llim_proc:kxkyz_lo%ulim_proc))
+    beta = 0.
+    if (.not.allocated(gnew)) &
+         allocate (gnew(naky,nakx,-nzgrid:nzgrid,ntubes,vmu_lo%llim_proc:vmu_lo%ulim_alloc))
+    gnew = 0.
+    if (.not.allocated(gold)) &
+         allocate (gold(naky,nakx,-nzgrid:nzgrid,ntubes,vmu_lo%llim_proc:vmu_lo%ulim_alloc))
+    gold = 0.
+  end subroutine allocate_arrays_adjoint
+  
   subroutine allocate_arrays
 
     use stella_layouts, only: kxkyz_lo, vmu_lo
@@ -230,16 +241,22 @@ contains
 
   end subroutine init_vperp2
 
-  subroutine finish_dist_fn
+  subroutine finish_dist_fn (adjoint)
 
     use gyro_averages, only: finish_bessel
 
     implicit none
 
+    logical, optional, intent(in) :: adjoint
+    
     call finish_bessel
     call finish_kperp2
     call finish_vperp2
-    call deallocate_arrays
+    if (present(adjoint)) then
+       call deallocate_adjoint_arrays
+    else
+       call deallocate_arrays
+    end if
 
     dist_fn_initialized = .false.
     readinit = .false.
@@ -247,6 +264,20 @@ contains
 
   end subroutine finish_dist_fn
 
+  subroutine deallocate_adjoint_arrays
+    use dist_fn_arrays, only: lambda_old, lambda_new, beta
+    use dist_fn_arrays, only: gvmu, gnew, gold
+    
+    implicit none
+    
+    if(allocated(lambda_old)) deallocate(lambda_old)
+    if(allocated(lambda_new)) deallocate(lambda_new)
+    if(allocated(gvmu)) deallocate(gvmu)
+    if(allocated(beta)) deallocate(beta)
+    if(allocated(gnew)) deallocate(gnew)
+    if (allocated(gold)) deallocate(gold)
+  end subroutine deallocate_adjoint_arrays
+  
   subroutine deallocate_arrays
 
     use dist_fn_arrays, only: gnew, gold, gvmu

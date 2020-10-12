@@ -11,15 +11,20 @@ module dist_fn_arrays
   public :: wstar
   public :: wdriftx_g, wdrifty_g
   public :: wdriftx_phi, wdrifty_phi
-
+  public :: lambda_old, lambda_new
+  public :: beta
+  public :: g_tau
+  public :: g_k
+  public :: gk
+  
   ! dist fn
-  complex, dimension (:,:,:,:,:), allocatable :: gnew, gold
+  complex, dimension (:,:,:,:,:), allocatable :: gnew, gold, g_tau, g_k
   ! (naky, nakx, -nzgrid:nzgrid, ntubes, -vmu-layout-)
 
   complex, dimension (:,:,:,:,:), allocatable :: g1, g2, g3
   ! (naky, nakx, -nzgrid:nzgrid, ntubes, -vmu-layout-)
 
-  complex, dimension (:,:,:), allocatable :: gvmu
+  complex, dimension (:,:,:), allocatable :: gvmu, lambda_vmu
   ! (nvpa, nmu, nspec, -kxkyz-layout-)
 
   real, dimension (:,:,:), allocatable :: wstar
@@ -32,4 +37,18 @@ module dist_fn_arrays
   real, dimension (:,:,:,:), allocatable :: kperp2
   ! (naky, nakx, nalpha, -nzgrid:nzgrid)
 
+  complex, dimension (:,:,:,:,:), allocatable :: lambda_old, lambda_new
+  ! (naky, nakx, -nzgrid:nzgrid, 1, -vmu-layout-)
+
+  complex, dimension (:,:,:,:,:), allocatable :: l1, l2, l3
+  ! (naky, nakx, -nzgrid:nzgrid, 1, -vmu-layout-)
+
+  complex, dimension (:), allocatable :: beta
+  ! (-kxkyz-layout-)
+
+  complex, dimension (:,:), allocatable :: omega
+  ! (naky,nakx)
+
+  complex, dimension (:,:,:,:,:,:), allocatable :: gk
+  ! (naky, nakx, -nzgrid:nzgrid, ntubes, -vmu-layout-, navg)                                                                                             
 end module dist_fn_arrays

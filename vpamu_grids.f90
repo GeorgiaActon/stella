@@ -12,12 +12,15 @@ module vpamu_grids
   public :: vperp2, maxwell_vpa, maxwell_mu, ztmax
   public :: equally_spaced_mu_grid
   public :: set_vpa_weights
-
+  public :: vpa_max
+  public :: mu_max
+  
   logical :: vpamu_initialized = .false.
   
   integer :: nvgrid, nvpa
   integer :: nmu
   real :: vpa_max, vperp_max
+  real :: mu_max
 
   ! arrays that are filled in vpamu_grids
   real, dimension (:), allocatable :: vpa, wgts_vpa, wgts_vpa_default
@@ -37,8 +40,6 @@ module vpamu_grids
 !     module procedure integrate_species_vmu
      module procedure integrate_species_vmu_single
      module procedure integrate_species_vmu_single_real
-     module procedure integrate_species_vmu_block_complex
-     module procedure integrate_species_vmu_block_real
 !     module procedure integrate_species_local_complex
 !     module procedure integrate_species_local_real
   end interface
@@ -515,80 +516,6 @@ contains
 
   end subroutine integrate_species_vmu_single_real
 
-  subroutine integrate_species_vmu_block_complex (g, iz, weights, pout, ia_in)
-
-    use mp, only: sum_allreduce
-    use stella_layouts, only: vmu_lo, iv_idx, imu_idx, is_idx
-    use kt_grids, only: nakx, naky
-
-    implicit none
-
-    integer :: ivmu, iv, is, imu, ia
-
-    complex, dimension (:,:,vmu_lo%llim_proc:), intent (in) :: g
-    integer, intent (in) :: iz
-    integer, intent (in), optional :: ia_in
-    real, dimension (:), intent (in) :: weights
-    complex, dimension (:,:), intent (out) :: pout
-
-    integer :: ikx,iky
-
-    pout =0.
-
-    if (present(ia_in)) then
-       ia = ia_in
-    else
-       ia = 1
-    end if
-
-    do ivmu = vmu_lo%llim_proc, vmu_lo%ulim_proc
-       iv = iv_idx(vmu_lo,ivmu)
-       imu = imu_idx(vmu_lo,ivmu)
-       is = is_idx(vmu_lo,ivmu)
-       pout = pout + wgts_mu(ia,iz,imu)*wgts_vpa(iv)*g(:,:,ivmu)*weights(is)
-    end do
-
-    call sum_allreduce (pout)
-
-  end subroutine integrate_species_vmu_block_complex
-
-  subroutine integrate_species_vmu_block_real (g, iz, weights, pout, ia_in)
-
-    use mp, only: sum_allreduce
-    use stella_layouts, only: vmu_lo, iv_idx, imu_idx, is_idx
-    use kt_grids, only: nakx, naky
-
-    implicit none
-
-    integer :: ivmu, iv, is, imu, ia
-
-    real, dimension (:,:,vmu_lo%llim_proc:), intent (in) :: g
-    integer, intent (in) :: iz
-    integer, intent (in), optional :: ia_in
-    real, dimension (:), intent (in) :: weights
-    real, dimension (:,:), intent (out) :: pout
-
-    integer :: ikx,iky
-
-    pout =0.
-
-    if (present(ia_in)) then
-       ia = ia_in
-    else
-       ia = 1
-    end if
-
-    do ivmu = vmu_lo%llim_proc, vmu_lo%ulim_proc
-       iv = iv_idx(vmu_lo,ivmu)
-       imu = imu_idx(vmu_lo,ivmu)
-       is = is_idx(vmu_lo,ivmu)
-       pout = pout + wgts_mu(ia,iz,imu)*wgts_vpa(iv)*g(:,:,ivmu)*weights(is)
-    end do
-
-    call sum_allreduce (pout)
-
-  end subroutine integrate_species_vmu_block_real
-
   subroutine finish_vpa_grid
 
     implicit none
@@ -612,7 +539,6 @@ contains
     implicit none
 
     integer :: imu
-    real :: mu_max
     real, dimension (:), allocatable :: wgts_mu_tmp
 
     ! allocate arrays and initialize to zero
