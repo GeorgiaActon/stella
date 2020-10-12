@@ -8,6 +8,7 @@ module millerlocal
   public :: read_local_parameters
   public :: get_local_geo
   public :: local
+  public :: del
 !  public :: Rpos, Zpos
 
   private
@@ -49,7 +50,7 @@ module millerlocal
   real, dimension (:), allocatable :: d2jacdr2, dRdrho, dZdrho, dRdth, dZdth
 
   real, dimension (:), allocatable :: d2R, d2Z
-
+  real, dimension(14) :: del
   type (flux_surface_type) :: local
 
   logical :: defaults_initialized = .false.
@@ -91,7 +92,7 @@ contains
 
   end subroutine init_local_defaults
 
-  subroutine read_local_parameters (local_out)
+  subroutine read_local_parameters (local_out, change_p)
     
     use file_utils, only: input_unit_exist
     use common_types, only: flux_surface_type
@@ -102,11 +103,27 @@ contains
 
     integer :: in_file
     logical :: exist
+    integer, optional, intent (in) :: change_p 
 
     namelist /millergeo_parameters/ rhoc, rmaj, shift, qinp, shat, &
          kappa, kapprim, tri, triprim, rgeo, betaprim, &
          betadbprim, d2qdr2, d2psidr2, &
          nzed_local, read_profile_variation, write_profile_variation
+
+    del(1) = 0.01
+    del(2) = 0.01
+    del(3) = 0.01
+    del(4) = 0.01
+    del(5) = 0.01
+    del(6) = 0.01
+    del(7) = 0.01
+    del(8) = 0.01
+    del(9) = 0.01
+    del(10) = 0.01
+    del(11) = 0.01
+    del(12) = 0.01
+    del(13) = 0.01
+    del(14) = 0.01
     
     call init_local_defaults
 
@@ -127,7 +144,6 @@ contains
     local%betadbprim = betadbprim
     local%d2qdr2 = d2qdr2
     local%d2psidr2 = d2psidr2
-    local%zed0_fac = 1.0
 
     ! following two variables are not inputs
     local%dr = 1.e-3
@@ -136,6 +152,54 @@ contains
     local%drhotordrho = drhotordrho
     local%dpsitordrho = 0.0
     local%d2psitordrho2 = 0.0
+
+    if (present(change_p)) then
+       if (change_p == 0) then
+          write (*,*) 'no parameter change'
+       end if
+       if (change_p == 1) then
+          local%rhoc = local%rhoc + del(1)
+       end if
+       if (change_p == 2) then
+          local%rmaj = local%rmaj + del(2)
+       end if
+       if (change_p == 3) then
+          local%rgeo = local%rgeo + del(3)
+       end if
+       if (change_p == 4) then
+          local%shift = local%shift +del(4)
+       end if
+       if (change_p == 5) then
+          local%kappa = local%kappa +del(5)
+       end if
+       if (change_p == 6) then
+          local%kapprim = local%kapprim +del(6)
+       end if
+       if (change_p == 7) then
+          local%qinp = local%qinp + del(7)
+       end if
+       if (change_p == 8) then
+          local%shat = local%shat + del(8)
+       end if
+       if (change_p == 9) then
+          local%tri = local%tri + del(9)
+       end if
+       if (change_p  == 10) then
+          local%triprim = local%triprim + del(10)
+       end if
+       if (change_p == 11) then
+          local%betaprim = local%betaprim + del(11)
+       end if
+       if (change_p == 12) then
+          local%betadbprim = local%betadbprim + del(12)
+       end if
+       if (change_p == 13) then
+          local%d2qdr2 = local%d2qdr2 + del(13)
+       end if
+       if (change_p == 14) then
+          local%d2psidr2 = local%d2psidr2 + del(14)
+       end if
+    end if
 
     local_out = local
 

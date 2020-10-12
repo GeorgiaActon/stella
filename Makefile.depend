@@ -63,6 +63,34 @@ test_vmec_to_stella_geometry_interface_mod = \
 	 test_vmec_to_stella_geometry_interface.o \
 	 vmec_to_stella_geometry_interface.o 
 
+adjoint_convergence.o: \
+	 fields_arrays.o \
+	 kt_grids.o \
+	 stella_diagnostics.o \
+	 stella_time.o \
+	 zgrid.o 
+adjoint_p_derivatives.o: \
+	 dist_fn_arrays.o \
+	 dist_redistribute.o \
+	 fields.o \
+	 fields_arrays.o \
+	 gyro_averages.o \
+	 kt_grids.o \
+	 millerlocal.o \
+	 mirror_terms.o \
+	 redistribute.o \
+	 species.o \
+	 stella_geometry.o \
+	 stella_layouts.o \
+	 vpamu_grids.o \
+	 zgrid.o 
+advancing_g_analytic.o: \
+	 dist_fn_arrays.o \
+	 kt_grids.o \
+	 stella_layouts.o \
+	 stella_time.o \
+	 vpamu_grids.o \
+	 zgrid.o 
 command_line.o: 
 common_types.o: 
 constants.o: 
@@ -93,7 +121,6 @@ dissipation.o: \
 dist_fn.o: \
 	 dist_fn_arrays.o \
 	 dist_redistribute.o \
-	 extended_zgrid.o \
 	 file_utils.o \
 	 gyro_averages.o \
 	 kt_grids.o \

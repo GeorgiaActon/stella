@@ -5,6 +5,8 @@ module stella_diagnostics
   public :: init_stella_diagnostics, finish_stella_diagnostics
   public :: diagnose_stella
   public :: nsave
+  public :: omega_vs_time
+  public :: navg
 
   private
 
@@ -22,7 +24,6 @@ module stella_diagnostics
   logical :: write_gvmus
   logical :: write_gzvs
   logical :: write_kspectra
-  logical :: flux_norm
 !  logical :: write_symmetry
 
   integer :: stdout_unit, fluxes_unit, omega_unit
@@ -89,7 +90,6 @@ contains
     call broadcast (write_phi_vs_time)
     call broadcast (write_gvmus)
     call broadcast (write_gzvs)
-    call broadcast (flux_norm)
 !    call broadcast (write_symmetry)
     
     nmovie_tot = nstep/nmovie
@@ -116,7 +116,7 @@ contains
     namelist /stella_diagnostics_knobs/ nwrite, navg, nmovie, nsave, &
          save_for_restart, write_phi_vs_time, write_gvmus, write_gzvs, &
 !         write_omega, write_kspectra, write_symmetry, write_moments
-         write_omega, write_kspectra, write_moments, flux_norm
+         write_omega, write_kspectra, write_moments
 
     if (proc0) then
        nwrite = 50
@@ -130,7 +130,6 @@ contains
        write_gzvs = .false.
        write_kspectra = .false.
        write_moments = .false.
-       flux_norm = .true.
 !       write_symmetry = .false.
 
        in_file = input_unit_exist ("stella_diagnostics_knobs", exist)
@@ -216,7 +215,7 @@ contains
 
   end subroutine close_loop_ascii_files
 
-  subroutine diagnose_stella (istep)
+  subroutine diagnose_stella (istep, adjoint)
 
     use mp, only: proc0
     use constants, only: zi
@@ -224,6 +223,7 @@ contains
     use fields_arrays, only: phi, apar
     use fields_arrays, only: phi_old
     use dist_fn_arrays, only: gvmu, gnew
+    use dist_fn_arrays, only: lambda_new
 !    use g_tofrom_h, only: g_to_h
     use stella_io, only: write_time_nc
     use stella_io, only: write_phi_nc
@@ -244,6 +244,8 @@ contains
 
     integer, intent (in) :: istep
     
+    logical, optional, intent (in) :: adjoint
+    
     real :: phi2, apar2
     real :: zero
     real, dimension (:,:,:), allocatable :: gvmus
@@ -256,6 +258,10 @@ contains
 
     complex, dimension (:,:), allocatable :: phiavg, phioldavg
 
+    ! if (present(adjoint)) then
+    !    gnew = lambda_new
+    ! end if
+    
     ! calculation of omega requires computation of omega more
     ! frequently than every nwrite time steps
     if (write_omega .and. proc0) then
@@ -355,6 +361,9 @@ contains
     deallocate (part_flux, mom_flux, heat_flux)
 
     nout = nout + 1
+
+    if (present(adjoint)) lambda_new = gnew
+   
 
   end subroutine diagnose_stella
 
@@ -467,14 +476,7 @@ contains
     pflx = 0. ; vflx = 0. ; qflx = 0.
 
     flx_norm = jacob(1,:)*delzed
-
-    IF (flux_norm) THEN
-       ! Flux definition with an extra factor 1/<\nabla\rho> in front.
-       flx_norm = flx_norm/SUM(flx_norm*grho(1,:))
-    ELSE
-       ! Flux definition witou the extra factor.
-       flx_norm = flx_norm/SUM(flx_norm)       
-    ENDIF
+    flx_norm = flx_norm/sum(flx_norm*grho(1,:))
 
     ia = 1
     ! get electrostatic contributions to fluxes
@@ -817,8 +819,7 @@ contains
          'time=', code_time, '|phi|^2=', phi2, '|apar|^2= ', apar2
 
     write (nspec_str,'(i3)') 3*nspec+1
-!    str = trim('('//trim(nspec_str)//'e12.4)')
-    str = trim('('//trim(nspec_str)//'es15.4e3)')
+    str = trim('('//trim(nspec_str)//'e12.4)')
     write (fluxes_unit,str) code_time, pflx, vflx, qflx
 
     if (write_omega .and. istep > 0) then
@@ -842,9 +843,8 @@ contains
     use zgrid, only: nzgrid, ntubes
     use zgrid, only: zed
     use kt_grids, only: naky, nakx
-    use kt_grids, only: aky, akx, zed0
+    use kt_grids, only: aky, akx, theta0
     use stella_geometry, only: zed_eqarc
-    USE dist_fn_arrays, ONLY: kperp2
 
     implicit none
 
@@ -852,17 +852,16 @@ contains
     integer :: iky, ikx, iz, it
 
     call open_output_file (tmpunit,'.final_fields')
-    write (tmpunit,'(10a14)') '# z', 'z-zed0', 'aky', 'akx', &
+    write (tmpunit,'(9a14)') '# z', 'z-thet0', 'aky', 'akx', &
          'real(phi)', 'imag(phi)', 'real(apar)', 'imag(apar)', &
-         'z_eqarc-zed0', 'kperp2'
+         'z_eqarc-thet0'
     do iky = 1, naky
        do ikx = 1, nakx
           do it = 1, ntubes
              do iz = -nzgrid, nzgrid
-                write (tmpunit,'(10es15.4e3,i3)') zed(iz), zed(iz)-zed0(iky,ikx), aky(iky), akx(ikx), &
+                write (tmpunit,'(9es15.4e3,i3)') zed(iz), zed(iz)-theta0(iky,ikx), aky(iky), akx(ikx), &
                   real(phi(iky,ikx,iz,it)), aimag(phi(iky,ikx,iz,it)), &
-                  real(apar(iky,ikx,iz,it)), aimag(apar(iky,ikx,iz,it)), zed_eqarc(iz)-zed0(iky,ikx), &
-                  kperp2(iky,ikx,it,iz), it
+                  real(apar(iky,ikx,iz,it)), aimag(apar(iky,ikx,iz,it)), zed_eqarc(iz)-theta0(iky,ikx), it
              end do
              write (tmpunit,*)
           end do

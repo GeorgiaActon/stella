@@ -6,6 +6,7 @@ module gyro_averages
   public :: init_bessel, finish_bessel
   public :: gyro_average
   public :: gyro_average_j1
+  public :: arg
   
   private
 
@@ -33,6 +34,8 @@ module gyro_averages
 
   logical :: bessinit = .false.
 
+  real :: arg
+  
 contains
 
   subroutine init_bessel
@@ -61,7 +64,7 @@ contains
 
     integer :: iz, iky, ikx, imu, is, ia, iv
     integer :: ikxkyz, ivmu
-    real :: arg, dum
+    real :: dum
     integer :: ia_max_aj0a_count, ia_max_gam0a_count
     real :: ia_max_aj0a_reduction_factor, ia_max_gam0a_reduction_factor
 
@@ -354,12 +357,10 @@ contains
 !        deallocate (field_kyall, gyro_field_kyall)
     else
        gyro_field = aj0x(:,:,iz,ivmu)*field
-       ! INCLUSION OF BELOW ALLOCATE/DEALLOCATE STATEMENTS
-       ! OBSERVED TO INCREASE RUN-TIME BY FACTOR OF 3 FOR
-       ! MODERATE RESOLUTION LINEAR SIMULATION
-       ! I DO NOT UNDERSTAND WHY
-!       allocate (field_kyall(1,1)) ; deallocate (field_kyall)
-!       allocate (gyro_field_kyall(1,1)) ; deallocate (gyro_field_kyall)
+       ! not sure if below necessary, but wanting to avoid
+       ! problems of allocatable array not being allocated
+       allocate (field_kyall(1,1)) ; deallocate (field_kyall)
+       allocate (gyro_field_kyall(1,1)) ; deallocate (gyro_field_kyall)
     end if
 
   end subroutine gyro_average_kxky_local
@@ -376,14 +377,12 @@ contains
 
     integer :: iz, it
 
-    ! NEED TO FIGURE OUT WHY BELOW LOOP SLOWS DOWN CODE A BIT
-    ! WILL HAVE TO USE IT WHEN DOING FULL FLUX SURFACE
-!    do it = 1, ntubes
-!       do iz = -nzgrid, nzgrid
-!          call gyro_average (field(:,:,iz,it), iz, ivmu, gyro_field(:,:,iz,it))
-!       end do
-!    end do
-    gyro_field = spread(aj0x(:,:,:,ivmu),4,ntubes)*field
+    do it = 1, ntubes
+       do iz = -nzgrid, nzgrid
+          call gyro_average (field(:,:,iz,it), iz, ivmu, gyro_field(:,:,iz,it))
+       end do
+    end do
+!    gyro_field = spread(aj0x(:,:,:,ivmu),4,ntubes)*field
 
   end subroutine gyro_average_kxkyz_local
 
